@@ -1,0 +1,21 @@
+GLOWUP STUDIO AI — VERSIÓN DE REVISIÓN
+
+Esta carpeta se ha preparado sin modificar GitHub, Vercel ni el dominio público.
+
+Incluye:
+- Portada con bucle espacial optimizado y fondo alternativo.
+- Interfaz oscura con menú lateral y adaptación móvil.
+- Conexión de textos a /api/generate-text, conservando el código del repositorio.
+- Imágenes mediante el proveedor ACTUAL (Pollinations); todavía NO Gemini.
+- Editor BETA de vista previa y marcado de fragmentos; NO exporta vídeos.
+- Las funciones PRO y de creación de vídeo con IA son pantallas informativas, NO activas.
+
+ANTES DE PUBLICAR:
+1. Probar el diseño en móvil y ordenador.
+2. Verificar las variables de entorno de OpenAI en Vercel, sin publicarlas.
+3. Verificar límite de uso y facturación antes de recibir usuarios.
+4. Implantar validación real de pagos/usuarios antes de ofrecer PRO.
+5. Decidir si integrar Gemini y generación/exportación real de vídeo.
+
+Los ficheros *.js.txt antiguos se han conservado en referencia_codigo_anterior.
+NO subir esta carpeta entera a la raíz de GitHub sin revisar antes.

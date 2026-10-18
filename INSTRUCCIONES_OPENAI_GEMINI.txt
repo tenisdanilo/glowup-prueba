@@ -1,0 +1,30 @@
+GLOWUP — OPENAI + GEMINI: VERSIÓN DE PRUEBAS
+================================================
+No se ha cambiado nada en GitHub, Vercel ni tu web pública.
+
+YA IMPLEMENTADO EN CÓDIGO:
+- /api/generate-text -> OpenAI GPT-4o mini; respuesta para el chat.
+- /api/generate-image -> Gemini 3.1 Flash Image; devuelve la imagen al navegador.
+- Claves privadas únicamente en funciones del servidor.
+- Comprobación de longitud y método HTTP, mensajes de error, esperas limitadas.
+
+CONFIGURACIÓN PARA PRUEBAS EN VERCEL (Environment Variables):
+- CLAVE_API_DE_OPENAI = tu clave de OpenAI ya existente (o OPENAI_API_KEY).
+- GEMINI_API_KEY = clave Gemini creada por ti en Google AI Studio.
+- ENABLE_PUBLIC_AI = true (SOLO para pruebas controladas, NO publicar aún).
+No compartas estas claves por chat ni las incluyas en GitHub.
+
+IMPORTANTE: NO PUBLICAR AÚN.
+- ENABLE_PUBLIC_AI está DESACTIVADO por defecto.
+- Esto impide facturación accidental pero no sustituye el control de acceso.
+- Antes de habilitar a usuarios públicos, hay que añadir inicio de sesión,
+  cuotas persistentes por usuario, limitación de peticiones y gasto,
+  y verificación real de suscripciones PRO.
+- La generación de imágenes puede consumir saldo; requiere proyecto habilitado
+  y disponibilidad del modelo gemini-3.1-flash-image.
+- No se han efectuado peticiones reales de pago a OpenAI o Gemini en esta revisión.
+- El editor de vídeo solo previsualiza y selecciona fragmentos;
+  no exporta. La generación de vídeo IA sigue pendiente.
+- Una vez publicada la web, no pongas ENABLE_PUBLIC_AI=true sin seguridad.
+
+Próximo paso: probar en entorno aislado de Vercel, sin modificar la web pública.

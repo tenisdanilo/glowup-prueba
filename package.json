@@ -1,0 +1,10 @@
+{
+  "name": "glow-up-ai",
+  "version": "1.0.0",
+  "description": "Studio IA Híbrido",
+  "main": "index.js",
+  "dependencies": {
+    "openai": "^4.20.0",
+    "node-fetch": "^2.7.0"
+  }
+}

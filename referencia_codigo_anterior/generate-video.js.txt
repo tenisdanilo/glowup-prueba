@@ -1,0 +1,46 @@
+generate-video.js
+
+export default async function handler(req, res) {
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Método no permitido' });
+    }
+
+    const { prompt } = req.body;
+    const apiToken = process.env.REPLICATE_API_TOKEN;
+
+    if (!apiToken) {
+        return res.status(500).json({ error: 'Falta configurar REPLICATE_API_TOKEN en las variables de entorno de Vercel.' });
+    }
+
+    if (!prompt) {
+        return res.status(400).json({ error: 'El prompt es obligatorio.' });
+    }
+
+    try {
+        // Petición segura desde el servidor de Vercel hacia Replicate
+        const response = await fetch("https://api.replicate.com/v1/predictions", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${apiToken}`,
+                "Content-Type": "application/json",
+                "Prefer": "wait"
+            },
+            body: JSON.stringify({
+                version: "9f747673945c62801b13b84701c743929c826edd73f5e55e373404fb852ef75d",
+                input: { prompt: prompt }
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            return res.status(500).json({ error: data.error });
+        }
+
+        const videoUrl = Array.isArray(data.output) ? data.output[data.output.length - 1] : data.output;
+
+        return res.status(200).json({ videoUrl });
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+}
