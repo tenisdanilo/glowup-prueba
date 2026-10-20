@@ -48,3 +48,4 @@ Objetivo de extensión: ENTRE ${words[0]} Y ${words[1]} PALABRAS SOLO DE NARRACI
   console.error('Story connection failed',{type:error?.name||'unknown'});
   return json(res,502,{error:error?.name==='AbortError'?'La generación tardó demasiado. Vuelve a intentar más tarde.':'Error de conexión al generar el guion. Consulta los registros de Vercel.'});
  }finally{clearTimeout(timer)}
+}
