@@ -1,7 +1,7 @@
 // GlowUp Studio AI — prototipo protegido de Idea a vídeo.
 // Mantener ENABLE_PUBLIC_AI=false hasta realizar pruebas controladas.
 const json=(res,status,payload)=>res.status(status).json(payload);
-export default async function handler(req,res){
+module.exports = async function handler(req,res){
  res.setHeader('Cache-Control','no-store');
  if(req.method!=='POST')return json(res,405,{error:'Método no permitido'});
  if(process.env.ENABLE_PUBLIC_AI!=='true')return json(res,503,{error:'Generación desactivada hasta configurar límites de uso y control de acceso.'});
