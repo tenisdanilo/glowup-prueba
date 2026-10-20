@@ -40,20 +40,32 @@ const panel=document.getElementById('panel-content'), sidebar=document.getElemen
 function closeMenu(){sidebar.classList.remove('open');overlay.classList.remove('open');document.getElementById('menu').setAttribute('aria-expanded','false')}
 function showTool(tool){if(!titles[tool])return;const t=titles[tool];document.getElementById('page-name').textContent=t[0];document.getElementById('panel-title').textContent=t[1];document.getElementById('panel-desc').textContent=t[2];document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));panel.replaceChildren();if(['home','story','text','image','editor'].includes(tool)){panel.append(document.getElementById(tool+'-template').content.cloneNode(true));if(tool==='home')panel.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>showTool(b.dataset.go)));if(tool==='text')document.getElementById('text-submit').addEventListener('click',generateText);if(tool==='story')document.getElementById('story-submit').addEventListener('click',generateStory);if(tool==='image')document.getElementById('image-submit').addEventListener('click',generateImage);if(tool==='editor')setupEditor()}else{const card=document.createElement('section');card.className='workcard';const h=document.createElement('h3');h.textContent=tool==='video'?'Generación de vídeo con IA — próximamente':'Herramienta PRO en preparación';const p=document.createElement('p');p.textContent='Esta funcionalidad aparece en tu web actual, pero no viene implementada en los archivos recibidos. Necesita un servicio en el servidor y control de acceso antes de activarla.';const note=document.createElement('div');note.className='notice';note.textContent='No se realizará ningún cobro ni ninguna generación desde esta pantalla.';card.append(h,p,note);panel.append(card)}closeMenu()}
 document.querySelectorAll('[data-tool]').forEach(b=>b.addEventListener('click',()=>showTool(b.dataset.tool)));document.getElementById('menu').addEventListener('click',()=>{const o=sidebar.classList.toggle('open');overlay.classList.toggle('open',o);document.getElementById('menu').setAttribute('aria-expanded',String(o))});overlay.addEventListener('click',closeMenu);document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu()});document.getElementById('start').addEventListener('click',()=>{showTool('home');document.getElementById('estudio').scrollIntoView({behavior:'smooth'})});
+async function readJsonResponse(response){
+ const raw=await response.text();
+ let data;
+ try{data=JSON.parse(raw)}catch{
+  if(/the page|authentication|sign in|deployment protection|vercel/i.test(raw))throw Error('La protección de Vercel o una página intermedia ha impedido recibir la respuesta. Comprueba que accedes desde el dominio protegido e iniciaste sesión.');
+  throw Error('El servidor respondió con un formato inesperado (HTTP '+response.status+'). Comprueba el despliegue y la ruta de la API.');
+ }
+ if(!response.ok||data?.error)throw Error(data?.error||'Error del servidor (HTTP '+response.status+').');
+ return data;
+}
 async function generateStory(){
  const topic=document.getElementById('story-topic').value.trim(),format=document.getElementById('story-format').value,duration=Number(document.getElementById('story-duration').value),tone=document.getElementById('story-tone').value;
  const out=document.getElementById('story-response'),btn=document.getElementById('story-submit'),copy=document.getElementById('story-copy'),download=document.getElementById('story-download');
- copy.classList.add('hidden');download.classList.add('hidden');
+ copy.classList.add('hidden');download.classList.add('hidden');copy.textContent='Copiar resultado';
  if(topic.length<10){out.textContent='Describe tu idea en al menos 10 caracteres.';return}
  btn.disabled=true;btn.textContent='Preparando escenas…';out.textContent='Organizando el guion y las escenas…';
  try{
-  const r=await fetch('/api/generate-story',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic,format,duration,tone})});
-  const data=await r.json();if(!r.ok||data.error)throw Error(data.error||'Respuesta inesperada');
-  const result=typeof data.story==='string'?data.story:'';if(!result)throw Error('El servidor no devolvió un guion.');
+  const response=await fetch('/api/generate-story',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic,format,duration,tone})});
+  const data=await readJsonResponse(response);
+  const result=typeof data.story==='string'?data.story:'';
+  if(!result)throw Error('El servidor no devolvió un guion.');
   out.textContent=result;copy.classList.remove('hidden');download.classList.remove('hidden');
   copy.onclick=async()=>{try{await navigator.clipboard.writeText(result);copy.textContent='Copiado ✓'}catch{copy.textContent='No se pudo copiar'}};
   download.onclick=()=>{const url=URL.createObjectURL(new Blob([result],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='glowup-plan-video.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
- }catch(e){out.textContent='No se pudo preparar el vídeo: '+e.message}finally{btn.disabled=false;btn.textContent='Crear plan de vídeo →'}
+ }catch(error){out.textContent='No se pudo preparar el vídeo: '+(error?.message||'Error desconocido')}
+ finally{btn.disabled=false;btn.textContent='Crear plan de vídeo →'}
 }
 async function generateText(){const prompt=document.getElementById('text-prompt').value.trim(),out=document.getElementById('text-response'),btn=document.getElementById('text-submit');if(!prompt){out.textContent='Escribe algo para empezar.';return}btn.disabled=true;btn.textContent='Generando…';out.textContent='Consultando el asistente…';try{const r=await fetch('/api/generate-text',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});const data=await r.json();if(!r.ok||data.error)throw Error(data.error||'El servidor no ha respondido correctamente');out.textContent=typeof data.text==='string'?data.text:'La respuesta del servidor no tiene el formato esperado.'}catch(e){out.textContent='No se pudo generar el texto. Comprueba que /api/generate-text está configurada en Vercel. Detalle: '+e.message}finally{btn.disabled=false;btn.textContent='Generar respuesta →'}}
 async function generateImage(){
