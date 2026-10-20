@@ -1,19 +1,50 @@
-export default async function handler(req, res) {
+// GlowUp Studio AI — prototipo protegido de Idea a vídeo.
+// Mantener ENABLE_PUBLIC_AI=false hasta realizar pruebas controladas.
+const json=(res,status,payload)=>res.status(status).json(payload);
+export default async function handler(req,res){
  res.setHeader('Cache-Control','no-store');
- if(req.method!=='POST')return res.status(405).json({error:'Método no permitido'});
- if(process.env.ENABLE_PUBLIC_AI!=='true')return res.status(503).json({error:'La IA está desactivada en esta versión de pruebas.'});
- const {topic,format,duration,tone}=req.body||{};
- const validFormats=['documental','historia','educativo','short'],validTones=['cinematografico','cercano','sereno','dinamico'];
- if(typeof topic!=='string'||topic.trim().length<10||topic.length>1800||!validFormats.includes(format)||!validTones.includes(tone)||![3,5,10,15].includes(duration))return res.status(400).json({error:'Revisa la idea y las opciones seleccionadas.'});
- const key=process.env.CLAVE_API_DE_OPENAI||process.env.OPENAI_API_KEY;
- if(!key)return res.status(503).json({error:'Falta configurar OpenAI.'});
- const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),45000);
- try {
-  const response=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Authorization':`Bearer ${key}`,'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify({model:process.env.OPENAI_MODEL||'gpt-4o-mini',temperature:0.65,max_tokens:2600,messages:[
-   {role:'system',content:'Eres guionista audiovisual especializado en vídeos narrados de YouTube en español. Entrega un PLAN DE PRODUCCIÓN, no finjas crear un vídeo. Responde con texto plano legible, encabezados sencillos, sin Markdown complejo. Incluye: 1) TÍTULO y gancho inicial; 2) SINOPSIS; 3) ESTRUCTURA por escenas numeradas (hasta 8), cada escena con duración estimada, texto de narración concreto, descripción de imagen para IA y sugerencia de montaje; 4) CIERRE; 5) LISTA DE RECURSOS. Mantén la duración orientativa, señala que el guion es un primer borrador sujeto a revisión, no inventes citas o hechos cuando no estés seguro.'},
-   {role:'user',content:`Idea: ${topic.trim()}\nFormato: ${format}\nDuración aproximada: ${duration} minutos\nEstilo: ${tone}. Evita prometer un vídeo final: entrega guion y plan de escenas.`}
-  ]})});
-  const data=await response.json();if(!response.ok){console.error('Story OpenAI status',response.status);return res.status(502).json({error:'El servicio de guiones no respondió correctamente.'})}
-  return res.status(200).json({story:data.choices?.[0]?.message?.content||''});
- } catch(e){console.error('Story backend failure',e.name);return res.status(502).json({error:'No se ha podido conectar con OpenAI.'})}finally{clearTimeout(timer)}
-}
+ if(req.method!=='POST')return json(res,405,{error:'Método no permitido'});
+ if(process.env.ENABLE_PUBLIC_AI!=='true')return json(res,503,{error:'Generación desactivada hasta configurar límites de uso y control de acceso.'});
+ const apiKey=(process.env.CLAVE_API_DE_OPENAI||'').trim();
+ if(!apiKey)return json(res,503,{error:'Falta configurar CLAVE_API_DE_OPENAI en Vercel.'});
+ const body=typeof req.body==='string'?(()=>{try{return JSON.parse(req.body)}catch{return {}}})():(req.body||{});
+ const topic=typeof body.topic==='string'?body.topic.trim():'';
+ const validFormats=['documental','historia','educativo','short'];
+ const validTones=['cinematografico','cercano','sereno','dinamico'];
+ const format=validFormats.includes(body.format)?body.format:'documental';
+ const tone=validTones.includes(body.tone)?body.tone:'cinematografico';
+ const duration=[3,5,10,15].includes(Number(body.duration))?Number(body.duration):5;
+ if(topic.length<10||topic.length>1800)return json(res,400,{error:'Escribe una idea entre 10 y 1800 caracteres.'});
+ const words={3:[360,450],5:[600,750],10:[1200,1500],15:[1800,2200]}[duration];
+ const instructions=`Eres un guionista documental profesional y director creativo especializado en YouTube en español. Debes entregar un GUION LISTO PARA NARRAR, no un esquema ni una lista de consejos.
+REGLAS ESTRICTAS:
+- Escribe una NARRACIÓN COMPLETA, con frases literarias naturales, acciones y detalles concretos; evita fórmulas vacías, saludos al espectador, resúmenes del propio vídeo, y frases como "en este vídeo exploraremos".
+- Abre directamente en una situación visual concreta e intrigante; mantén un hilo narrativo fluido y un cierre satisfactorio.
+- Para cada escena, escribe por separado: número y duración aproximada; NARRACIÓN (párrafos completos que puedan leerse literalmente en voz alta); IMAGEN EN PANTALLA (descripción específica); PROMPT VISUAL (fotografía/ilustración cinematográfica, escenario, época, encuadre, luz, personajes y continuidad visual). Evita repetir la misma imagen en todas las escenas.
+- Solo las palabras dentro de NARRACIÓN cuentan para el objetivo de longitud; no sustituyas la narración por viñetas o sinopsis.
+- Si hay historia, ciencia o hechos reales: no inventes citas textuales, personas documentadas, fechas, ni eventos; separa expresamente en una sección final HECHOS A VERIFICAR las afirmaciones inciertas. Puedes usar una escena cotidiana plausible como reconstrucción, pero identifícala como recreación, no como un suceso comprobado.
+- Mantén los mismos personajes y rasgos entre escenas cuando reaparezcan. No prometas generar vídeos ni imágenes: describes cómo producirlos.
+- Termina con una sección titulada 'COMPROBACIÓN FINAL' que indique el número aproximado de palabras de narración, los puntos a verificar y si hay recreaciones.
+- No incluyas código, instrucciones de llamadas a API ni explicaciones técnicas.
+La prioridad es que el creador pueda copiar directamente cada bloque de NARRACIÓN en una herramienta de voz.`;
+ const prompt=`IDEA DEL USUARIO:\n${topic}\n\nFORMATO: ${format}\nDURACIÓN: ${duration} minutos\nESTILO: ${tone}\n
+Objetivo de extensión: ENTRE ${words[0]} Y ${words[1]} PALABRAS SOLO DE NARRACIÓN (sin contar títulos, prompts ni notas). Elige suficientes escenas para sostener esa duración. Entrega, en este orden: TÍTULO; NARRACIÓN POR ESCENAS con tiempos, texto íntegro para voz e indicaciones visuales; CIERRE dentro de la última escena; HECHOS A VERIFICAR; COMPROBACIÓN FINAL. Escribe todo en español. Si necesitas ahorrar espacio, acorta las indicaciones visuales, pero NUNCA conviertas la narración en un esquema.`;
+ const controller=new AbortController();
+ const timer=setTimeout(()=>controller.abort(),90000);
+ try{
+  const response=await fetch('https://api.openai.com/v1/chat/completions',{
+   method:'POST',headers:{'Authorization':`Bearer ${apiKey}`,'Content-Type':'application/json'},
+   body:JSON.stringify({model:'gpt-4o-mini',temperature:0.7,max_tokens:({3:3400,5:5100,10:9300,15:13500})[duration],messages:[{role:'system',content:instructions},{role:'user',content:prompt}]}),signal:controller.signal
+  });
+  const data=await response.json().catch(()=>null);
+  if(!response.ok){
+   console.error('OpenAI story request failed',{status:response.status,code:data?.error?.code||'unknown'});
+   return json(res,502,{error:response.status===429?'OpenAI ha alcanzado un límite de cuota. Comprueba tu saldo y límites.':'OpenAI no pudo preparar el guion (HTTP '+response.status+'). Revisa los registros de Vercel.'});
+  }
+  const story=data?.choices?.[0]?.message?.content;
+  if(typeof story!=='string'||!story.trim())return json(res,502,{error:'OpenAI no devolvió un guion válido.'});
+  return json(res,200,{story:story.trim()});
+ }catch(error){
+  console.error('Story connection failed',{type:error?.name||'unknown'});
+  return json(res,502,{error:error?.name==='AbortError'?'La generación tardó demasiado. Vuelve a intentar más tarde.':'Error de conexión al generar el guion. Consulta los registros de Vercel.'});
+ }finally{clearTimeout(timer)}
