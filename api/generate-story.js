@@ -1,4 +1,4 @@
-// GlowUp Studio AI — Idea a video V4. CommonJS para Vercel.
+// GlowUp Studio AI — Idea a video V5. CommonJS para Vercel.
 // Mantener ENABLE_PUBLIC_AI=false fuera de pruebas controladas.
 const respond = (res, status, payload) => res.status(status).json(payload);
 const ranges = {3:[360,450],5:[600,750],10:[1200,1500],15:[1800,2200]};
@@ -62,16 +62,26 @@ module.exports = async function handler(req,res) {
   const tone=['cinematografico','cercano','sereno','dinamico'].includes(body.tone)?body.tone:'cinematografico';
   const duration=[3,5,10,15].includes(Number(body.duration))?Number(body.duration):5;
   const [minimum,maximum]=ranges[duration];
+  const mode=body.mode==='creativo'?'creativo':'riguroso';
+  const sceneCount=duration<=5?(duration===3?3:5):(duration===10?8:10);
+  const sceneTarget=Math.ceil((minimum+maximum)/2/sceneCount);
+  const sceneLower=Math.floor(minimum/sceneCount);
+  const sceneUpper=Math.ceil(maximum/sceneCount);
+  const scenePlan=Array.from({length:sceneCount},(_,i)=>`ESCENA ${i+1}: ${sceneLower}-${sceneUpper} palabras exclusivamente en NARRACIÓN:`).join('\n');
 
-  const instructions=`Eres guionista documental y editor de rigor factual para creadores de YouTube en español. Entrega un GUION COMPLETO LISTO PARA NARRAR, nunca un esquema. Respeta estos requisitos:
+  const modeInstructions=mode==='riguroso'
+    ? 'MODO DOCUMENTAL RIGUROSO: Separa hechos contrastables y recreaciones. No inventes instituciones, citas, eventos o bibliografía. No afirmes que has consultado fuentes externas; ofrece fuentes concretas solo si conoces con alta confianza el título/autor y marca toda referencia para verificación.'
+    : 'MODO NARRACIÓN CREATIVA: Prioriza tensión narrativa, personajes y estructura emocional. Señala claramente qué personajes o sucesos son ficticios; no presentes como históricos detalles inventados.';
+  const instructions=`Eres guionista documental y editor de rigor factual para creadores de YouTube en español. Entrega un GUION COMPLETO LISTO PARA NARRAR, nunca un esquema. Respeta estos requisitos:\n${modeInstructions}\n
+
 1. APERTURA: comienza en una acción observable, sorprendente y concreta que plantee una pregunta real o contraste verificable. Evita introducciones genéricas del amanecer, frases motivacionales, saludos, "imagina esto", "detente un segundo", "en este vídeo" y suspense fabricado.
-2. NARRACIÓN: planifica primero la longitud total y distribuye suficientes palabras por escena. Redacta párrafos completos con acciones, detalles específicos, progresión dramática y transiciones humanas. Evita párrafos vacíos, resúmenes y moralejas abstractas. Las palabras de narración deben sumar ENTRE ${minimum} Y ${maximum}; las indicaciones para imágenes no cuentan. Ajusta cantidad y longitud de escenas.
+2. NARRACIÓN: escribe EXACTAMENTE la cantidad prevista de escenas y respeta la cuota de palabras de narración asignada a cada una. Distribuye suficientes palabras por escena. Redacta párrafos completos con acciones, detalles específicos, progresión dramática y transiciones humanas. Evita párrafos vacíos, resúmenes y moralejas abstractas. Las palabras de narración deben sumar ENTRE ${minimum} Y ${maximum}; las indicaciones para imágenes no cuentan. Ajusta cantidad y longitud de escenas.
 3. RIGOR: si es historia, fija o declara el periodo y contexto elegidos. No atribuyas a personajes ficticios cargos, privilegios o eventos incompatibles con su condición; no presentes diálogos inventados como citas históricas. Distingue hechos consolidados, generalizaciones y recreaciones. No inventes fuentes, personas históricas, fechas ni citas.
 4. PERSONAJES: si usas personajes ficticios, identifícalos AL INICIO como "recreación ficticia basada en prácticas documentadas". Repite rasgos, ropa y estatus social de forma coherente. Evita mezclar experiencias de diferentes clases sociales como si fueran típicas de toda la sociedad.
 5. VISUALES: cada escena debe describir lo que la cámara mostraría, con época, arquitectura, materiales, vestimenta, encuadre, luz y continuidad de personajes. Los prompts deben ser concretos y útiles para generar imágenes 16:9; no prometas que ya se han generado.
 6. FORMATO FIJO (sin tablas): TÍTULO; CONTEXTO Y RECREACIONES (1-3 líneas); luego escenas numeradas y temporizadas. En CADA escena coloca exactamente los encabezados 'NARRACIÓN:', 'IMAGEN EN PANTALLA:' y 'PROMPT VISUAL:' en líneas propias, seguidos de sus párrafos. Finaliza con 'HECHOS A VERIFICAR:' incluyendo afirmaciones específicas y 'FUENTES A CONSULTAR:' con tipos de fuentes, sin inventar referencias. NO declares tu propio recuento de palabras; el sistema lo calculará.
-7. Escribe todo en español. No incluyas código, instrucciones de API ni explicaciones técnicas. Prioriza la narración sobre los prompts si el espacio es limitado.`;
-  const prompt=`IDEA: ${topic}\nFORMATO: ${format}\nDURACIÓN SOLICITADA: ${duration} minutos\nESTILO: ${tone}\nEXTENSIÓN OBLIGATORIA DE NARRACIÓN: ${minimum}-${maximum} palabras (solo bloques NARRACIÓN). Narra lo suficiente para ese tiempo. Si el tema es histórico, delimita el periodo y marca claramente las recreaciones.`;
+7. PLAN OBLIGATORIO DE ESCENAS: ${sceneCount} escenas. Meta por escena: ${sceneTarget} palabras de voz en off, dentro de ${sceneLower}-${sceneUpper} cada una. No cuentes las descripciones visuales. NO reduzcas la longitud para ahorrar texto.\n8. Escribe todo en español. No incluyas código, instrucciones de API ni explicaciones técnicas. Prioriza la narración sobre los prompts si el espacio es limitado.`;
+  const prompt=`IDEA: ${topic}\nFORMATO: ${format}\nMODALIDAD: ${mode}\nPLAN DE EXTENSIÓN POR ESCENA:\n${scenePlan}\nDURACIÓN SOLICITADA: ${duration} minutos\nESTILO: ${tone}\nEXTENSIÓN OBLIGATORIA DE NARRACIÓN: ${minimum}-${maximum} palabras (solo bloques NARRACIÓN). Narra lo suficiente para ese tiempo. Si el tema es histórico, delimita el periodo y marca claramente las recreaciones.`;
 
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),90000);
@@ -79,7 +89,7 @@ module.exports = async function handler(req,res) {
     const response=await fetch('https://api.openai.com/v1/chat/completions',{
       method:'POST',
       headers:{'Authorization':`Bearer ${apiKey}`,'Content-Type':'application/json'},
-      body:JSON.stringify({model:'gpt-4o-mini',temperature:0.55,max_tokens:({3:3400,5:5100,10:9300,15:13500})[duration],messages:[{role:'system',content:instructions},{role:'user',content:prompt}]}),
+      body:JSON.stringify({model:'gpt-4o-mini',temperature:0.45,max_tokens:({3:3400,5:5100,10:9300,15:13500})[duration],messages:[{role:'system',content:instructions},{role:'user',content:prompt}]}),
       signal:controller.signal
     });
     const data=await response.json().catch(()=>null);
@@ -96,11 +106,16 @@ module.exports = async function handler(req,res) {
       words>maximum?`AVISO DE DURACIÓN: se han contado ${words} palabras de narración, más de las ${maximum} máximas previstas. El guion probablemente será demasiado largo.`:
       `CONTROL DE DURACIÓN: ${words} palabras de narración contadas por el servidor; dentro del objetivo de ${minimum}-${maximum} palabras.`;
     const checks=auditStory(story,words,minimum,maximum);
+    const sceneTexts=story.split(/^\s*\*{0,2}ESCENA\s+\d+[^\n]*/gim).slice(1);
+    const sceneWordCounts=sceneTexts.map(section=>countWords(extractNarration(section)));
+    sceneWordCounts.forEach((n,i)=>{if(n<sceneLower) checks.push(`Escena ${i+1}: ${n} palabras narradas, mínimo orientativo ${sceneLower}.`)});
+    if(sceneWordCounts.length!==sceneCount) checks.push(`Se esperaban ${sceneCount} escenas y se encontraron ${sceneWordCounts.length}.`);
     const audit=checks.length ? `CONTROL DE CALIDAD (revisión necesaria):\n- ${checks.join('\n- ')}` : 'CONTROL DE CALIDAD: estructura y extensión superan las comprobaciones automáticas.';
     const result=`${story.trim()}\n\n---\n${footer}\n\n${audit}\nNota: Estas comprobaciones no certifican la exactitud histórica ni la calidad literaria; contrasta el contenido con fuentes fiables antes de publicar.`;
-    return respond(res,200,{story:result});
+    return respond(res,200,{story:result,quality:{words,minimum,maximum,mode,scenesExpected:sceneCount,issues:checks}});
   } catch(error) {
     console.error('Story connection failed',{type:error?.name||'unknown'});
     return respond(res,502,{error:error?.name==='AbortError'?'La generación superó el tiempo máximo de espera.':'Error de conexión al generar el guion. Consulta los registros de Vercel.'});
   } finally {clearTimeout(timer);}
 };
+
