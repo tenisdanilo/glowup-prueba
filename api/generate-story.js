@@ -1,4 +1,4 @@
-// GlowUp Studio AI — Idea a video V3. CommonJS para Vercel.
+// GlowUp Studio AI — Idea a video V4. CommonJS para Vercel.
 // Mantener ENABLE_PUBLIC_AI=false fuera de pruebas controladas.
 const respond = (res, status, payload) => res.status(status).json(payload);
 const ranges = {3:[360,450],5:[600,750],10:[1200,1500],15:[1800,2200]};
@@ -27,6 +27,27 @@ function countWords(value) {
   return (value.match(/[\p{L}\p{N}]+(?:[’'-][\p{L}\p{N}]+)*/gu) || []).length;
 }
 
+// Comprobaciones locales: no generan llamadas adicionales a la API.
+function auditStory(story, words, minimum, maximum) {
+  const checks=[];
+  const matches=(pattern)=>[...story.matchAll(pattern)].length;
+  const scenes=matches(/^\s*\*{0,2}ESCENA\s+\d+/gim);
+  const narrations=matches(/^\s*\*{0,2}(?:NARRACI[ÓO]N|VOZ EN OFF)\s*:/gim);
+  const images=matches(/^\s*\*{0,2}IMAGEN EN PANTALLA\s*:/gim);
+  const prompts=matches(/^\s*\*{0,2}PROMPT VISUAL\s*:/gim);
+  if (words===0) checks.push('No se han podido identificar los bloques de narración.');
+  else if (words<minimum) checks.push(`Narración insuficiente: ${words} palabras; objetivo mínimo ${minimum}.`);
+  else if (words>maximum) checks.push(`Narración demasiado larga: ${words} palabras; máximo ${maximum}.`);
+  if (!scenes) checks.push('No se detectaron escenas numeradas.');
+  if (scenes && narrations!==scenes) checks.push(`Estructura: ${scenes} escenas y ${narrations} encabezados de narración.`);
+  if (scenes && images!==scenes) checks.push(`Estructura: ${scenes} escenas y ${images} secciones de imagen.`);
+  if (scenes && prompts!==scenes) checks.push(`Estructura: ${scenes} escenas y ${prompts} prompts visuales.`);
+  if (!/HECHOS A VERIFICAR/i.test(story)) checks.push('Falta la sección de hechos a verificar.');
+  if (!/FUENTES A CONSULTAR/i.test(story)) checks.push('Falta la sección de fuentes a consultar.');
+  if (!/CONTEXTO Y RECREACIONES/i.test(story)) checks.push('Falta identificar el contexto y las recreaciones.');
+  return checks;
+}
+
 module.exports = async function handler(req,res) {
   res.setHeader('Cache-Control','no-store');
   if (req.method !== 'POST') return respond(res,405,{error:'Método no permitido'});
@@ -44,7 +65,7 @@ module.exports = async function handler(req,res) {
 
   const instructions=`Eres guionista documental y editor de rigor factual para creadores de YouTube en español. Entrega un GUION COMPLETO LISTO PARA NARRAR, nunca un esquema. Respeta estos requisitos:
 1. APERTURA: comienza en una acción observable, sorprendente y concreta que plantee una pregunta real o contraste verificable. Evita introducciones genéricas del amanecer, frases motivacionales, saludos, "imagina esto", "detente un segundo", "en este vídeo" y suspense fabricado.
-2. NARRACIÓN: redacta párrafos completos con acciones, detalles específicos, progresión dramática y transiciones humanas. Evita párrafos vacíos, resúmenes y moralejas abstractas. Las palabras de narración deben sumar ENTRE ${minimum} Y ${maximum}; las indicaciones para imágenes no cuentan. Ajusta cantidad y longitud de escenas.
+2. NARRACIÓN: planifica primero la longitud total y distribuye suficientes palabras por escena. Redacta párrafos completos con acciones, detalles específicos, progresión dramática y transiciones humanas. Evita párrafos vacíos, resúmenes y moralejas abstractas. Las palabras de narración deben sumar ENTRE ${minimum} Y ${maximum}; las indicaciones para imágenes no cuentan. Ajusta cantidad y longitud de escenas.
 3. RIGOR: si es historia, fija o declara el periodo y contexto elegidos. No atribuyas a personajes ficticios cargos, privilegios o eventos incompatibles con su condición; no presentes diálogos inventados como citas históricas. Distingue hechos consolidados, generalizaciones y recreaciones. No inventes fuentes, personas históricas, fechas ni citas.
 4. PERSONAJES: si usas personajes ficticios, identifícalos AL INICIO como "recreación ficticia basada en prácticas documentadas". Repite rasgos, ropa y estatus social de forma coherente. Evita mezclar experiencias de diferentes clases sociales como si fueran típicas de toda la sociedad.
 5. VISUALES: cada escena debe describir lo que la cámara mostraría, con época, arquitectura, materiales, vestimenta, encuadre, luz y continuidad de personajes. Los prompts deben ser concretos y útiles para generar imágenes 16:9; no prometas que ya se han generado.
@@ -74,7 +95,9 @@ module.exports = async function handler(req,res) {
       words<minimum?`AVISO DE DURACIÓN: se han contado ${words} palabras de narración, menos de las ${minimum} mínimas previstas. El guion probablemente será demasiado corto.`:
       words>maximum?`AVISO DE DURACIÓN: se han contado ${words} palabras de narración, más de las ${maximum} máximas previstas. El guion probablemente será demasiado largo.`:
       `CONTROL DE DURACIÓN: ${words} palabras de narración contadas por el servidor; dentro del objetivo de ${minimum}-${maximum} palabras.`;
-    const result=`${story.trim()}\n\n---\n${footer}\nNota: La revisión de rigor histórico requiere contrastar el contenido con fuentes fiables antes de publicar.`;
+    const checks=auditStory(story,words,minimum,maximum);
+    const audit=checks.length ? `CONTROL DE CALIDAD (revisión necesaria):\n- ${checks.join('\n- ')}` : 'CONTROL DE CALIDAD: estructura y extensión superan las comprobaciones automáticas.';
+    const result=`${story.trim()}\n\n---\n${footer}\n\n${audit}\nNota: Estas comprobaciones no certifican la exactitud histórica ni la calidad literaria; contrasta el contenido con fuentes fiables antes de publicar.`;
     return respond(res,200,{story:result});
   } catch(error) {
     console.error('Story connection failed',{type:error?.name||'unknown'});
