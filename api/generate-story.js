@@ -1,4 +1,4 @@
-// GlowUp Studio AI — Idea a video V5. CommonJS para Vercel.
+// GlowUp Studio AI — Idea a video V6. CommonJS para Vercel.
 // Mantener ENABLE_PUBLIC_AI=false fuera de pruebas controladas.
 const respond = (res, status, payload) => res.status(status).json(payload);
 const ranges = {3:[360,450],5:[600,750],10:[1200,1500],15:[1800,2200]};
@@ -64,24 +64,25 @@ module.exports = async function handler(req,res) {
   const [minimum,maximum]=ranges[duration];
   const mode=body.mode==='creativo'?'creativo':'riguroso';
   const sceneCount=duration<=5?(duration===3?3:5):(duration===10?8:10);
-  const sceneTarget=Math.ceil((minimum+maximum)/2/sceneCount);
+  // Apuntar al 85 % de la banda evita quedar justo en el mínimo al redactar.
+  const sceneTarget=Math.ceil((minimum + (maximum-minimum)*0.85)/sceneCount);
   const sceneLower=Math.floor(minimum/sceneCount);
   const sceneUpper=Math.ceil(maximum/sceneCount);
-  const scenePlan=Array.from({length:sceneCount},(_,i)=>`ESCENA ${i+1}: ${sceneLower}-${sceneUpper} palabras exclusivamente en NARRACIÓN:`).join('\n');
+  const scenePlan=Array.from({length:sceneCount},(_,i)=>`ESCENA ${i+1}: objetivo ${sceneTarget} palabras de NARRACIÓN (rango aceptable ${sceneLower}-${sceneUpper}).`).join('\n');
 
   const modeInstructions=mode==='riguroso'
     ? 'MODO DOCUMENTAL RIGUROSO: Separa hechos contrastables y recreaciones. No inventes instituciones, citas, eventos o bibliografía. No afirmes que has consultado fuentes externas; ofrece fuentes concretas solo si conoces con alta confianza el título/autor y marca toda referencia para verificación.'
     : 'MODO NARRACIÓN CREATIVA: Prioriza tensión narrativa, personajes y estructura emocional. Señala claramente qué personajes o sucesos son ficticios; no presentes como históricos detalles inventados.';
   const instructions=`Eres guionista documental y editor de rigor factual para creadores de YouTube en español. Entrega un GUION COMPLETO LISTO PARA NARRAR, nunca un esquema. Respeta estos requisitos:\n${modeInstructions}\n
 
-1. APERTURA: comienza en una acción observable, sorprendente y concreta que plantee una pregunta real o contraste verificable. Evita introducciones genéricas del amanecer, frases motivacionales, saludos, "imagina esto", "detente un segundo", "en este vídeo" y suspense fabricado.
-2. NARRACIÓN: escribe EXACTAMENTE la cantidad prevista de escenas y respeta la cuota de palabras de narración asignada a cada una. Distribuye suficientes palabras por escena. Redacta párrafos completos con acciones, detalles específicos, progresión dramática y transiciones humanas. Evita párrafos vacíos, resúmenes y moralejas abstractas. Las palabras de narración deben sumar ENTRE ${minimum} Y ${maximum}; las indicaciones para imágenes no cuentan. Ajusta cantidad y longitud de escenas.
-3. RIGOR: si es historia, fija o declara el periodo y contexto elegidos. No atribuyas a personajes ficticios cargos, privilegios o eventos incompatibles con su condición; no presentes diálogos inventados como citas históricas. Distingue hechos consolidados, generalizaciones y recreaciones. No inventes fuentes, personas históricas, fechas ni citas.
-4. PERSONAJES: si usas personajes ficticios, identifícalos AL INICIO como "recreación ficticia basada en prácticas documentadas". Repite rasgos, ropa y estatus social de forma coherente. Evita mezclar experiencias de diferentes clases sociales como si fueran típicas de toda la sociedad.
-5. VISUALES: cada escena debe describir lo que la cámara mostraría, con época, arquitectura, materiales, vestimenta, encuadre, luz y continuidad de personajes. Los prompts deben ser concretos y útiles para generar imágenes 16:9; no prometas que ya se han generado.
+1. APERTURA: las primeras 35-55 palabras de la primera escena deben contener una situación humana específica con una consecuencia clara (riesgo, dilema, descubrimiento o contraste comprobable). Evita abrir con vistas panorámicas, amanecer, el foro bullicioso, "cómo era realmente", "imagina esto", "detente un segundo", "en este vídeo" y preguntas genéricas. El conflicto de apertura debe resolverse o retomarse antes del cierre, sin suspenso artificioso.
+2. NARRACIÓN: escribe EXACTAMENTE ${sceneCount} escenas. Apunta a ${sceneTarget} palabras narradas por escena y a un total aproximado de ${sceneTarget*sceneCount} palabras narradas; nunca menos de ${minimum} ni más de ${maximum}. Cuenta SOLO las palabras de los bloques NARRACIÓN. Cada escena debe mostrar una acción o decisión concreta, cambiar la situación y pasar a la siguiente con una transición natural. Al menos dos escenas deben incluir un detalle material o costumbre históricamente defendible que sorprenda al espectador. Evita resúmenes, moralejas abstractas, generalidades y repeticiones.
+3. RIGOR: si es historia, delimita lugar y periodo. No mezcles instituciones, edificios, espectáculos ni costumbres de épocas distintas sin explicarlo; evita nombrar lugares o prácticas cuya existencia o fecha no puedas sostener con alta confianza. No atribuyas a personajes ficticios cargos o privilegios incompatibles con su condición ni presentes diálogos recreados como citas. Distingue hechos documentados, inferencias y dramatización. No inventes referencias, autores, fechas ni citas.
+4. PERSONAJES: declara antes de la primera escena cuáles son recreaciones ficticias. Limita el número de protagonistas y fija para cada uno edad aproximada, oficio, condición social, vestuario y aspecto; mantenlos sin contradicciones en todo el guion. No conviertas casos particulares en experiencias universales ni presentes sentimientos inventados como hechos históricos.
+5. VISUALES: en IMAGEN EN PANTALLA describe una toma realmente filmable y una acción visible. Cada PROMPT VISUAL debe ser autónomo y utilizable para imagen 16:9: lugar y fecha, sujeto principal con rasgos consistentes, acción, objetos y materiales, arquitectura y vestuario propios del contexto, composición de cámara, iluminación realista y textura cinematográfica. No escribas etiquetas vagas como "vida cotidiana", "ambiente vibrante" o "calidez familiar" sin detalles visibles. No añadas elementos anacrónicos, texto superpuesto, marcas de agua ni prometas que ya se han generado imágenes.
 6. FORMATO FIJO (sin tablas): TÍTULO; CONTEXTO Y RECREACIONES (1-3 líneas); luego escenas numeradas y temporizadas. En CADA escena coloca exactamente los encabezados 'NARRACIÓN:', 'IMAGEN EN PANTALLA:' y 'PROMPT VISUAL:' en líneas propias, seguidos de sus párrafos. Finaliza con 'HECHOS A VERIFICAR:' incluyendo afirmaciones específicas y 'FUENTES A CONSULTAR:' con tipos de fuentes, sin inventar referencias. NO declares tu propio recuento de palabras; el sistema lo calculará.
-7. PLAN OBLIGATORIO DE ESCENAS: ${sceneCount} escenas. Meta por escena: ${sceneTarget} palabras de voz en off, dentro de ${sceneLower}-${sceneUpper} cada una. No cuentes las descripciones visuales. NO reduzcas la longitud para ahorrar texto.\n8. Escribe todo en español. No incluyas código, instrucciones de API ni explicaciones técnicas. Prioriza la narración sobre los prompts si el espacio es limitado.`;
-  const prompt=`IDEA: ${topic}\nFORMATO: ${format}\nMODALIDAD: ${mode}\nPLAN DE EXTENSIÓN POR ESCENA:\n${scenePlan}\nDURACIÓN SOLICITADA: ${duration} minutos\nESTILO: ${tone}\nEXTENSIÓN OBLIGATORIA DE NARRACIÓN: ${minimum}-${maximum} palabras (solo bloques NARRACIÓN). Narra lo suficiente para ese tiempo. Si el tema es histórico, delimita el periodo y marca claramente las recreaciones.`;
+7. PLAN OBLIGATORIO DE ESCENAS: ${sceneCount} escenas. Objetivo por escena: ${sceneTarget} palabras de voz en off (admisible ${sceneLower}-${sceneUpper}); total objetivo ${sceneTarget*sceneCount}. Mantén los bloques de imagen más breves que la narración. Revisa la extensión de cada escena mentalmente antes de concluir. No reduzcas la longitud para ahorrar texto.\n8. Escribe todo en español. No incluyas código, instrucciones de API ni explicaciones técnicas. Prioriza la narración sobre los prompts si el espacio es limitado.`;
+  const prompt=`IDEA: ${topic}\nFORMATO: ${format}\nMODALIDAD: ${mode}\nPLAN DE EXTENSIÓN POR ESCENA:\n${scenePlan}\nDURACIÓN SOLICITADA: ${duration} minutos\nESTILO: ${tone}\nEXTENSIÓN OBLIGATORIA DE NARRACIÓN: ${minimum}-${maximum} palabras (solo bloques NARRACIÓN); apunta a ${sceneTarget*sceneCount}. Narra lo suficiente para ese tiempo. Si el tema es histórico, delimita el periodo y marca claramente las recreaciones.`;
 
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),90000);
@@ -118,4 +119,3 @@ module.exports = async function handler(req,res) {
     return respond(res,502,{error:error?.name==='AbortError'?'La generación superó el tiempo máximo de espera.':'Error de conexión al generar el guion. Consulta los registros de Vercel.'});
   } finally {clearTimeout(timer);}
 };
-
