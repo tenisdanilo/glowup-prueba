@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mi cuenta | GlowUp Studio AI</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <style>
+    :root{color-scheme:dark;font-family:Inter,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;background:#090b19;color:#f9f8ff}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 55% 10%,#27213d 0,#101222 43%,#080b17 100%)}
+    main{width:min(530px,calc(100% - 36px));margin:9vh auto 40px}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:40px;gap:14px}header strong{font-size:20px}a{color:#c8b9ff;text-decoration:none}
+    .panel{border:1px solid #343450;border-radius:19px;background:#17192b;padding:30px;box-shadow:0 25px 80px #0004}h1{font-size:30px;margin:0 0 8px}p{color:#bfc4d9;line-height:1.55}label{font-size:13px;font-weight:700;display:block;margin:18px 0 8px}input{width:100%;padding:15px;border-radius:10px;border:1px solid #40435f;background:#0c1020;color:#fff;font-size:16px}button{padding:14px 18px;border:0;border-radius:11px;font-weight:700;cursor:pointer;font-size:15px}button.primary{background:linear-gradient(95deg,#9568ef,#6495fa);color:white;width:100%;margin-top:22px}button.secondary{background:#292744;color:white}button:disabled{opacity:.55;cursor:not-allowed}
+    .tabs{display:flex;gap:10px;margin:20px 0}.tabs button{flex:1}.tabs .selected{outline:2px solid #ad90fa}.status{border:1px solid #3f4e62;border-radius:10px;padding:13px;margin-top:20px;white-space:pre-wrap;color:#dfe4ff}.status.error{border-color:#b9516b;color:#ffbbc8}.muted{font-size:12px;color:#9ea3bb}.hidden{display:none}#signed-in-email{overflow-wrap:anywhere}
+  </style>
+</head>
+<body>
+<main>
+  <header><strong>GlowUp <span style="color:#bd9cfe">Studio AI</span></strong><a href="/">Volver a GlowUp</a></header>
+  <section class="panel">
+    <h1>Mi cuenta</h1>
+    <p>Regístrate o inicia sesión para gestionar tus futuros créditos de GlowUp.</p>
+    <div id="loading">Comprobando conexión segura…</div>
+    <div id="auth-area" class="hidden">
+      <div class="tabs"><button type="button" class="secondary selected" id="tab-login">Entrar</button><button type="button" class="secondary" id="tab-signup">Crear cuenta</button></div>
+      <form id="auth-form">
+        <label for="email">Correo electrónico</label><input id="email" type="email" autocomplete="email" required maxlength="254" />
+        <label for="password">Contraseña (mínimo 8 caracteres)</label><input id="password" type="password" autocomplete="current-password" required minlength="8" maxlength="128" />
+        <button class="primary" id="submit" type="submit">Iniciar sesión</button>
+      </form>
+      <p class="muted">En las pruebas, Supabase puede limitar el envío de correos. Comprueba la carpeta de spam si no recibes la confirmación.</p>
+    </div>
+    <div id="user-area" class="hidden">
+      <p>Sesión iniciada como <strong id="signed-in-email"></strong></p>
+      <p class="muted">El saldo y las compras todavía no están conectados. No se admiten compras reales ni se habilita IA desde esta página.</p>
+      <button id="logout" class="secondary" type="button">Cerrar sesión</button>
+    </div>
+    <div id="status" class="status hidden" role="status" aria-live="polite"></div>
+  </section>
+</main>
+<script type="module">
+  const $ = (id) => document.getElementById(id);
+  let client;
+  let mode = 'login';
+  function status(message, error = false) {
+    $('status').textContent = message;
+    $('status').classList.remove('hidden');
+    $('status').classList.toggle('error', error);
+  }
+  function setMode(next) {
+    mode = next;
+    $('tab-login').classList.toggle('selected', mode === 'login');
+    $('tab-signup').classList.toggle('selected', mode === 'signup');
+    $('submit').textContent = mode === 'login' ? 'Iniciar sesión' : 'Crear cuenta';
+    $('password').setAttribute('autocomplete', mode === 'login' ? 'current-password' : 'new-password');
+    $('status').classList.add('hidden');
+  }
+  function render(user) {
+    $('auth-area').classList.toggle('hidden', Boolean(user));
+    $('user-area').classList.toggle('hidden', !user);
+    $('signed-in-email').textContent = user?.email || '';
+  }
+  $('tab-login').addEventListener('click', () => setMode('login'));
+  $('tab-signup').addEventListener('click', () => setMode('signup'));
+  $('auth-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!client) return status('La conexión de Supabase no está disponible.', true);
+    const email = $('email').value.trim();
+    const password = $('password').value;
+    $('submit').disabled = true;
+    try {
+      if (mode === 'signup') {
+        const { data, error } = await client.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + '/cuenta.html' } });
+        if (error) throw error;
+        if (data.session) {
+          render(data.user);
+          status('Cuenta creada y sesión iniciada.');
+        } else {
+          status('Si el registro es válido, recibirás un correo para confirmar tu cuenta. Abre ese enlace y vuelve a esta página.');
+        }
+      } else {
+        const { data, error } = await client.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        render(data.user);
+        status('Sesión iniciada correctamente.');
+      }
+    } catch (error) {
+      status(error?.message || 'No se pudo completar la operación.', true);
+    } finally {
+      $('submit').disabled = false;
+    }
+  });
+  $('logout').addEventListener('click', async () => {
+    const { error } = await client.auth.signOut();
+    if (error) return status(error.message, true);
+    render(null);
+    status('Sesión cerrada.');
+  });
+  try {
+    const response = await fetch('/api/supabase-public-config', { cache: 'no-store' });
+    if (!response.ok) throw new Error('La configuración de Supabase no está disponible en este despliegue.');
+    const config = await response.json();
+    // Import package from its official CDN. Only the publishable key reaches the browser.
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+    client = createClient(config.supabaseUrl, config.supabasePublishableKey, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+    });
+    const { data: { user }, error } = await client.auth.getUser();
+    if (error && error.name !== 'AuthSessionMissingError') console.warn('Supabase session check:', error.name);
+    $('loading').classList.add('hidden');
+    render(user);
+    client.auth.onAuthStateChange((_event, session) => render(session?.user || null));
+  } catch (error) {
+    $('loading').classList.add('hidden');
+    status(error?.message || 'Error al conectar con el servicio de usuarios.', true);
+  }
+</script>
+</body>
+</html>
