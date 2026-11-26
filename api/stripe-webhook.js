@@ -41,7 +41,26 @@ module.exports = async function handler(req, res) {
 
   try {
     const signature = req.headers['stripe-signature'];
-    const rawBody = req.rawBody || req.body;
+   
+const rawBody = await new Promise((resolve, reject) => {
+  const chunks = [];
+  let size = 0;
+
+  req.on('data', chunk => {
+    size += chunk.length;
+
+    if (size > 1024 * 1024) {
+      reject(new Error('Notificacion demasiado grande'));
+      return;
+    }
+
+    chunks.push(chunk);
+  });
+
+  req.on('end', () => resolve(Buffer.concat(chunks)));
+  req.on('error', reject);
+});
+
 
     if (!signature ||
         !(typeof rawBody === 'string' || Buffer.isBuffer(rawBody))) {
@@ -157,5 +176,10 @@ module.exports = async function handler(req, res) {
   } catch (error) {
     console.error('Error al procesar el pago:', error.message);
     return res.status(500).json({ error: 'Error procesando pago' });
+  }
+};
+module.exports.config = {
+  api: {
+    bodyParser: false
   }
 };
