@@ -22,5 +22,89 @@
 <section class="details"><h2>Cómo funcionarán los paquetes</h2><p>Los pagos y los créditos se implementarán antes de la venta pública. Una compra confirmada añadirá el paquete a la cuenta del usuario, y las generaciones descontarán los créditos correspondientes desde el servidor.</p><p>Los precios y límites mostrados son provisionales y no constituyen una oferta de compra activa. Aún debemos definir impuestos, caducidad de créditos, condiciones de reembolso y coste real de las imágenes. El contenido generado mediante IA puede contener errores y debe revisarse antes de publicarse; no se garantiza exactitud histórica o factual.</p></section>
 </main>
 <footer>© GlowUp Studio AI · Vista previa de planes de lanzamiento · Sin pagos activos</footer>
+
+<script type="module">
+const paquete = document.querySelector('.plans .plan');
+
+if (paquete) {
+  const boton = document.createElement('button');
+  boton.type = 'button';
+  boton.textContent = 'Comprar 5 guiones — 9,90 €';
+  boton.style.cssText =
+    'margin-top:16px;padding:13px 20px;border:0;' +
+    'border-radius:10px;background:#9370f5;' +
+    'color:white;font-weight:700;cursor:pointer';
+
+  const mensaje = document.createElement('p');
+  mensaje.style.cssText =
+    'font-size:13px;margin-top:12px';
+
+  paquete.append(boton, mensaje);
+
+  boton.addEventListener('click', async () => {
+    boton.disabled = true;
+    mensaje.textContent = 'Preparando compra de prueba...';
+
+    try {
+      const respuesta = await fetch('/api/supabase-public-config');
+      if (!respuesta.ok) throw new Error('Supabase no disponible');
+
+      const config = await respuesta.json();
+      const { createClient } = await import(
+        'https://esm.sh/@supabase/supabase-js@2'
+      );
+
+      const cliente = createClient(
+        config.supabaseUrl,
+        config.supabasePublishableKey,
+        {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true
+          }
+        }
+      );
+
+      const { data, error } = await cliente.auth.getSession();
+      if (error) throw error;
+
+      if (!data.session) {
+        mensaje.textContent =
+          'Inicia sesión en Mi cuenta para comprar.';
+        return;
+      }
+
+      const compra = await fetch('/api/create-checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + data.session.access_token
+        },
+        body: JSON.stringify({ packageCode: 'guionista' })
+      });
+
+      const resultado = await compra.json();
+
+      if (!compra.ok || !resultado.url) {
+        throw new Error(resultado.error || 'Compra no disponible');
+      }
+
+      const destino = new URL(resultado.url);
+      if (destino.protocol !== 'https:' ||
+          !destino.hostname.endsWith('.stripe.com')) {
+        throw new Error('Destino de pago no válido');
+      }
+
+      window.location.assign(destino.href);
+
+    } catch (error) {
+      mensaje.textContent = 'Error: ' + error.message;
+    } finally {
+      boton.disabled = false;
+    }
+  });
+}
+</script>
 </body>
 </html>
