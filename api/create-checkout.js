@@ -98,8 +98,8 @@ module.exports = async function handler(req, res) {
       success_url:
         'https://glowup-prueba.vercel.app/cuenta.html?checkout=success',
       cancel_url:
-        'https://glowup-prueba.vercel.app/precios.html?checkout=cancel',
-      payment_method_types: ['card']
+        'https://glowup-prueba.vercel.app/precios.html?checkout=cancel'
+     
     });
 
     return res.status(200).json({
